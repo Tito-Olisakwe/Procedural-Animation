@@ -6,6 +6,7 @@ public class CameraFollow : MonoBehaviour
     public Vector3 offset;
     public float smoothSpeed = 0.125f;
     public float mouseSensitivity = 100f;
+    public float distanceFromTarget = 5f;
 
     private float xRotation = 0f;
     private float yRotation = 0f;
@@ -13,6 +14,7 @@ public class CameraFollow : MonoBehaviour
     private void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
+
         yRotation = transform.eulerAngles.y;
     }
 
@@ -20,12 +22,12 @@ public class CameraFollow : MonoBehaviour
     {
         HandleMouseLook();
 
-        Vector3 direction = new Vector3(0, 0, -offset.magnitude);
-        Quaternion rotation = Quaternion.Euler(xRotation, yRotation, 0);
-        Vector3 newPosition = target.position + rotation * direction;
+        Quaternion rotation = Quaternion.Euler(xRotation, yRotation, 0f);
+        Vector3 desiredPosition = target.position - (rotation * Vector3.forward * distanceFromTarget + new Vector3(0, -offset.y, 0));
+        Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed);
 
-        transform.position = Vector3.Lerp(transform.position, newPosition, smoothSpeed);
-        transform.LookAt(target);
+        transform.position = smoothedPosition;
+        transform.LookAt(target.position + new Vector3(0, offset.y, 0));
     }
 
     private void HandleMouseLook()
@@ -35,7 +37,6 @@ public class CameraFollow : MonoBehaviour
 
         xRotation -= mouseY;
         xRotation = Mathf.Clamp(xRotation, -90f, 90f);
-
         yRotation += mouseX;
     }
 }
