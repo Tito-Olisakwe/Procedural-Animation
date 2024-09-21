@@ -24,6 +24,9 @@ public class ProceduralControl : MonoBehaviour
     private Quaternion targetRotation;
     private Vector3 walkAwayDirection;
 
+    public float smallObstacleThreshold = 5.0f;
+    public float largeObstacleThreshold = 8.0f;
+
     void Start()
     {
         movementScript = GetComponent<SimpleMovement>();
@@ -44,22 +47,20 @@ public class ProceduralControl : MonoBehaviour
         }
 
         // Detect obstacles
-        if (IsMoving() && DetectObstacle())
+        if (IsMoving() && DetectObstacle(out RaycastHit hit))
         {
             if (Vector3.Distance(transform.position, lastObstaclePosition) < 0.5f)
             {
                 return;
             }
 
-            animator.enabled = false;
-            BendAndTouchObstacle();
+            // React based on the obstacle's height
+            ReactBasedOnObstacleHeight(hit.collider);
 
             lastObstaclePosition = transform.position;
 
             movementScript.enabled = false;
             isReacting = true;
-
-            Invoke("EndReaction", 0.1f);
 
             return;
         }
@@ -71,21 +72,43 @@ public class ProceduralControl : MonoBehaviour
         }
     }
 
-    // Method to detect obstacles in front of the character
-    bool DetectObstacle()
+    // Detect obstacles in front of the character
+    bool DetectObstacle(out RaycastHit hit)
     {
-        RaycastHit hit;
         Vector3 rayOrigin = transform.position + Vector3.up * 1f;
         if (Physics.Raycast(rayOrigin, transform.forward, out hit, detectionDistance))
         {
             return true;
         }
+        hit = default;
         return false;
+    }
+
+    // React based on the height of the obstacle
+    void ReactBasedOnObstacleHeight(Collider obstacle)
+    {
+        float obstacleHeight = obstacle.bounds.size.y;
+
+        if (obstacleHeight < smallObstacleThreshold)
+        {
+            BendAndTouchObstacle();
+            Invoke("EndBending", 0.5f);
+        }
+        else if (obstacleHeight >= largeObstacleThreshold)
+        {
+            PrepareRotation();
+        }
+        else
+        {
+            BendAndTouchObstacle();
+            Invoke("EndBending", 0.5f);
+        }
     }
 
     // Character bending
     void BendAndTouchObstacle()
     {
+        animator.enabled = false;
         hips.localRotation = Quaternion.Euler(20, 0, 0);
         spine1.localRotation = Quaternion.Euler(20, 0, 0);
         spine2.localRotation = Quaternion.Euler(15, 0, 0);
@@ -94,8 +117,8 @@ public class ProceduralControl : MonoBehaviour
         head.localRotation = Quaternion.Euler(30, 0, 0);
     }
 
-    // End reaction and start rotating and walking away procedurally
-    void EndReaction()
+    // Reset joints
+    void ResetJoints()
     {
         hips.localRotation = Quaternion.identity;
         spine1.localRotation = Quaternion.identity;
@@ -103,6 +126,21 @@ public class ProceduralControl : MonoBehaviour
         leftHand.localRotation = Quaternion.identity;
         rightHand.localRotation = Quaternion.identity;
         head.localRotation = Quaternion.identity;
+    }
+
+    // End the bending reaction and reset everything
+    void EndBending()
+    {
+        ResetJoints();
+        isReacting = false;
+        movementScript.enabled = true;
+        animator.enabled = true;
+    }
+
+    // Prepare to rotate and walk away
+    void PrepareRotation()
+    {
+        ResetJoints();
 
         targetRotation = Quaternion.Euler(0, transform.eulerAngles.y + 180, 0);
         isRotating = true;
@@ -128,9 +166,7 @@ public class ProceduralControl : MonoBehaviour
     {
         isWalkingAway = true;
         Invoke("StopWalkingAway", 0.5f);
-
         walkAwayDirection = transform.forward;
-
         ProcedurallyWalkAway();
     }
 

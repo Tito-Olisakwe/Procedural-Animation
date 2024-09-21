@@ -1427,7 +1427,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4000013120964812, guid: 3d257e714ef9ccd449e0d0e0e373e1e5, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 13.96
+      value: 12.49
       objectReference: {fileID: 0}
     - target: {fileID: 4000013120964812, guid: 3d257e714ef9ccd449e0d0e0e373e1e5, type: 3}
       propertyPath: m_LocalPosition.y
@@ -2900,6 +2900,8 @@ MonoBehaviour:
   hips: {fileID: 698656335}
   spine1: {fileID: 1051347538}
   spine2: {fileID: 83136036}
+  smallObstacleThreshold: 5
+  largeObstacleThreshold: 8
 --- !u!1001 &1674487530
 PrefabInstance:
   m_ObjectHideFlags: 0
