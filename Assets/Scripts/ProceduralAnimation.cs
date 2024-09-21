@@ -1,58 +1,166 @@
 using UnityEngine;
 
-[RequireComponent(typeof(CharacterController))]
-public class SimpleMovement : MonoBehaviour
+public class ProceduralControl : MonoBehaviour
 {
-    public float moveSpeed = 5.0f;
-    public float gravity = -9.81f;
-    public Transform cameraTransform;
+    public float detectionDistance = 1.0f;
 
-    private CharacterController controller;
+    // Joints to control
+    public Transform leftHand;
+    public Transform rightHand;
+    public Transform leftLeg;
+    public Transform rightLeg;
+    public Transform head;
+    public Transform hips;
+    public Transform spine1;
+    public Transform spine2;
+
+    private SimpleMovement movementScript;
     private Animator animator;
-    private Vector3 moveDirection;
-    private float verticalVelocity = 0;
+    private bool isReacting = false;
+    private Vector3 lastObstaclePosition;
+    private bool isWalkingAway = false;
+    private bool isRotating = false;
+
+    private Quaternion targetRotation;
+    private Vector3 walkAwayDirection;
 
     void Start()
     {
-        controller = GetComponent<CharacterController>();
+        movementScript = GetComponent<SimpleMovement>();
         animator = GetComponent<Animator>();
     }
 
     void FixedUpdate()
     {
-        float moveX = Input.GetAxis("Horizontal");
-        float moveZ = Input.GetAxis("Vertical");
-
-        Vector3 forward = cameraTransform.forward;
-        Vector3 right = cameraTransform.right;
-
-        forward.y = 0f;
-        right.y = 0f;
-        forward.Normalize();
-        right.Normalize();
-
-        Vector3 relativeMovement = (forward * moveZ + right * moveX).normalized * moveSpeed;
-
-        bool isMoving = relativeMovement.magnitude > 0;
-        animator.SetBool("isWalking", isMoving);
-
-        if (controller.isGrounded)
+        if (movementScript == null)
         {
-            verticalVelocity = 0;
-        }
-        else
-        {
-            verticalVelocity += gravity * Time.deltaTime;
+            return;
         }
 
-        relativeMovement.y = verticalVelocity;
-
-        controller.Move(relativeMovement * Time.deltaTime);
-
-        if (isMoving)
+        if (isReacting || isRotating || isWalkingAway)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(relativeMovement);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 0.1f);
+            ProcedurallyWalkAway();
+            return;
         }
+
+        // Detect obstacles
+        if (IsMoving() && DetectObstacle())
+        {
+            if (Vector3.Distance(transform.position, lastObstaclePosition) < 0.5f)
+            {
+                return;
+            }
+
+            animator.enabled = false;
+            BendAndTouchObstacle();
+
+            lastObstaclePosition = transform.position;
+
+            movementScript.enabled = false;
+            isReacting = true;
+
+            Invoke("EndReaction", 0.1f);
+
+            return;
+        }
+
+        // Ensuring the movement script is enabled if we are not reacting or walking away
+        if (!movementScript.enabled && !isReacting && !isWalkingAway && !isRotating)
+        {
+            movementScript.enabled = true;
+        }
+    }
+
+    // Method to detect obstacles in front of the character
+    bool DetectObstacle()
+    {
+        RaycastHit hit;
+        Vector3 rayOrigin = transform.position + Vector3.up * 1f;
+        if (Physics.Raycast(rayOrigin, transform.forward, out hit, detectionDistance))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    // Character bending
+    void BendAndTouchObstacle()
+    {
+        hips.localRotation = Quaternion.Euler(20, 0, 0);
+        spine1.localRotation = Quaternion.Euler(20, 0, 0);
+        spine2.localRotation = Quaternion.Euler(15, 0, 0);
+        leftHand.localRotation = Quaternion.Euler(0, 0, 45);
+        rightHand.localRotation = Quaternion.Euler(0, 0, 45);
+        head.localRotation = Quaternion.Euler(30, 0, 0);
+    }
+
+    // End reaction and start rotating and walking away procedurally
+    void EndReaction()
+    {
+        hips.localRotation = Quaternion.identity;
+        spine1.localRotation = Quaternion.identity;
+        spine2.localRotation = Quaternion.identity;
+        leftHand.localRotation = Quaternion.identity;
+        rightHand.localRotation = Quaternion.identity;
+        head.localRotation = Quaternion.identity;
+
+        targetRotation = Quaternion.Euler(0, transform.eulerAngles.y + 180, 0);
+        isRotating = true;
+
+        InvokeRepeating("RotateCharacter", 0f, 0.02f);
+    }
+
+    // Rotate the character to the opposite direction
+    void RotateCharacter()
+    {
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 8.0f);
+
+        if (Quaternion.Angle(transform.rotation, targetRotation) < 1f)
+        {
+            isRotating = false;
+            CancelInvoke("RotateCharacter");
+            StartWalkingAway();
+        }
+    }
+
+    // Start walking away procedurally
+    void StartWalkingAway()
+    {
+        isWalkingAway = true;
+        Invoke("StopWalkingAway", 0.5f);
+
+        walkAwayDirection = transform.forward;
+
+        ProcedurallyWalkAway();
+    }
+
+    // Procedurally walk away
+    void ProcedurallyWalkAway()
+    {
+        transform.position += walkAwayDirection * Time.deltaTime * 2.0f;
+
+        leftLeg.localRotation = Quaternion.Euler(30, 0, 0);
+        rightLeg.localRotation = Quaternion.Euler(-30, 0, 0);
+    }
+
+    // Stop walking after walking away for a set time
+    void StopWalkingAway()
+    {
+        isWalkingAway = false;
+        movementScript.enabled = true;
+        animator.enabled = true;
+        isReacting = false;
+        isRotating = false;
+        isWalkingAway = false;
+    }
+
+    // Check if the character is moving by referencing SimpleMovement's movement logic
+    bool IsMoving()
+    {
+        if (movementScript != null && movementScript.enabled && animator.GetBool("isWalking"))
+        {
+            return true;
+        }
+        return false;
     }
 }
